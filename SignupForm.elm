@@ -17,22 +17,34 @@ import Html.Events exposing (..)
 -- namespace, specifically "id", "type'", "for", "value", and "class".
 import Html.Attributes exposing (id, type', for, value, class)
 
+import StartApp
+import Effects
 
-view model =
+view actionDispatcher model =
     form
         [ id "signup-form" ]
         [ h1 [] [ text "Sensational Signup Form" ]
         , label [ for "username-field" ] [ text "username: " ]
-        , input [ id "username-field", type' "text", value model.username ] []
-
+        , input
+            [ id "username-field"
+            , type' "text"
+            , value model.username
+            , on "input" targetValue (\str -> Signal.message actionDispatcher { actionType = "SET_USERNAME", payload = str })
+            ]
+            []
         , div [ class "validation-error" ] [ text model.errors.username ]
         , label [ for "password" ] [ text "password: " ]
-        , input [ id "password-field", type' "password", value model.password ] []
 
+        , input
+            [ id "password-field"
+            , type' "password"
+            , value model.password
+            , on "input" targetValue (\str -> Signal.message actionDispatcher { actionType = "SET_PASSWORD", payload = str })
+            ]
+            []
         , div [ class "validation-error" ] [ text model.errors.password ]
-        , div [ class "signup-button" ] [ text "Sign Up!" ]
+        , div [ class "signup-button", onClick actionDispatcher { actionType = "VALIDATE", payload = "" } ] [ text "Sign Up!" ]
         ]
-
 
 initialErrors =
     { username = "", password = "" }
@@ -51,8 +63,25 @@ getErrors model =
             ""
     }
 
--- Take a look at this starting model we’re passing to our view function.
--- Note that in Elm syntax, we use = to separate fields from values
--- instead of : like JavaScript uses for its object literals.
+update action model =
+    if action.actionType == "VALIDATE" then
+        ( { model | errors = getErrors model }, Effects.none )
+    else if action.actionType == "SET_USERNAME" then
+        ( { model | username = action.payload }, Effects.none )
+    else if action.actionType == "SET_PASSWORD" then
+        ( { model | password = action.payload }, Effects.none )
+    else
+        ( model, Effects.none )
+
+initialModel = { username = "", password = "", errors = initialErrors }
+
+app =
+    StartApp.start
+        { init = ( initialModel, Effects.none )
+        , update = update
+        , view = view
+        , inputs = []
+        }
+
 main =
-    view { username = "", password = "", errors = initialErrors }
+    app.html
