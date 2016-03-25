@@ -24,14 +24,35 @@ view model =
         [ h1 [] [ text "Sensational Signup Form" ]
         , label [ for "username-field" ] [ text "username: " ]
         , input [ id "username-field", type' "text", value model.username ] []
+
+        , div [ class "validation-error" ] [ text model.errors.username ]
         , label [ for "password" ] [ text "password: " ]
         , input [ id "password-field", type' "password", value model.password ] []
+
+        , div [ class "validation-error" ] [ text model.errors.password ]
         , div [ class "signup-button" ] [ text "Sign Up!" ]
         ]
 
+
+initialErrors =
+    { username = "", password = "" }
+
+getErrors model =
+    { username =
+        if model.username == "" then
+            "Please enter a username!"
+        else
+            ""
+
+    , password =
+        if model.password == "" then
+            "Please enter a password!"
+        else
+            ""
+    }
 
 -- Take a look at this starting model we’re passing to our view function.
 -- Note that in Elm syntax, we use = to separate fields from values
 -- instead of : like JavaScript uses for its object literals.
 main =
-    view { username = "", password = "" }
+    view { username = "", password = "", errors = initialErrors }
