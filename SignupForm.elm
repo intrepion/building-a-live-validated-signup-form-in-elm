@@ -1,24 +1,14 @@
 module SignupForm where
--- declares that this is the SignupForm module, which is how other modules
--- will reference this one if they want to import it and reuse its code.
-
-
--- Elm’s "import" keyword works mostly like "require" in node.js.
--- The “exposing (..)” option says that we want to bring the Html module’s contents
--- into this file’s current namespace, so that instead of writing out
--- Html.form and Html.label we can use "form" and "label" without the "Html."
-import Html exposing (..)
-
--- This works the same way; we also want to import the entire
--- Html.Events module into the current namespace.
-import Html.Events exposing (..)
-
--- With this import we are only bringing a few specific functions into our
--- namespace, specifically "id", "type'", "for", "value", and "class".
-import Html.Attributes exposing (id, type', for, value, class)
 
 import StartApp
 import Effects
+import Http
+import Task exposing (Task)
+import Json.Decode exposing (succeed)
+import Html exposing (..)
+import Html.Events exposing (..)
+import Html.Attributes exposing (id, type', for, value, class)
+
 
 view actionDispatcher model =
     form
@@ -32,9 +22,8 @@ view actionDispatcher model =
             , on "input" targetValue (\str -> Signal.message actionDispatcher { actionType = "SET_USERNAME", payload = str })
             ]
             []
-        , div [ class "validation-error" ] [ text model.errors.username ]
+        , div [ class "validation-error" ] [ text (viewUsernameErrors model) ]
         , label [ for "password" ] [ text "password: " ]
-
         , input
             [ id "password-field"
             , type' "password"
@@ -46,8 +35,17 @@ view actionDispatcher model =
         , div [ class "signup-button", onClick actionDispatcher { actionType = "VALIDATE", payload = "" } ] [ text "Sign Up!" ]
         ]
 
+
+viewUsernameErrors model =
+   if model.errors.usernameTaken then
+       "That username is taken!"
+   else
+       model.errors.username
+
+
 initialErrors =
-    { username = "", password = "" }
+    { username = "", password = "", usernameTaken = False }
+
 
 getErrors model =
     { username =
@@ -61,19 +59,55 @@ getErrors model =
             "Please enter a password!"
         else
             ""
+
+    , usernameTaken = model.errors.usernameTaken
     }
+
 
 update action model =
     if action.actionType == "VALIDATE" then
-        ( { model | errors = getErrors model }, Effects.none )
+        let
+            url =
+                "https://api.github.com/users/" ++ model.username
+
+            usernameTakenAction =
+                { actionType = "USERNAME_TAKEN", payload = "" }
+
+            usernameAvailableAction =
+                { actionType = "USERNAME_AVAILABLE", payload = "" }
+
+            request =
+                Http.get (succeed usernameTakenAction) url
+
+            neverFailingRequest =
+                Task.onError request (\err -> Task.succeed usernameAvailableAction)
+        in
+            ({ model | errors = getErrors model }, Effects.task neverFailingRequest)
     else if action.actionType == "SET_USERNAME" then
-        ( { model | username = action.payload }, Effects.none )
+        ( { model | username = action.payload, errors = initialErrors }, Effects.none )
     else if action.actionType == "SET_PASSWORD" then
-        ( { model | password = action.payload }, Effects.none )
+        ( { model | password = action.payload, errors = initialErrors }, Effects.none )
+    else if action.actionType == "USERNAME_TAKEN" then
+        ( withUsernameTaken True model, Effects.none )
+    else if action.actionType == "USERNAME_AVAILABLE" then
+        ( withUsernameTaken False model, Effects.none )
     else
         ( model, Effects.none )
 
+
+withUsernameTaken isTaken model =
+    let
+        currentErrors =
+            model.errors
+
+        newErrors =
+            { currentErrors | usernameTaken = isTaken }
+    in
+        { model | errors = newErrors }
+
+
 initialModel = { username = "", password = "", errors = initialErrors }
+
 
 app =
     StartApp.start
@@ -83,5 +117,11 @@ app =
         , inputs = []
         }
 
+
 main =
     app.html
+
+
+port tasks : Signal (Task Effects.Never ())
+port tasks =
+    app.tasks
